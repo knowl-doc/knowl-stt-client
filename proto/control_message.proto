@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message ControlMessage{
+  
+  enum MessageType {
+    MEDIA = 0; // PCM bytes
+    CLOSE = 1; // No further audio packets, close the connection
+    FINALIZE = 2; // Unimplemented, yield transcript of remaining audio buffered
+  }
+ 
+  MessageType type = 1;
+  bytes data = 2;
+}

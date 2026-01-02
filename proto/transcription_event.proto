@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+message TranscriptionEvent{
+  
+  enum EventType {
+    TRANSCRIPT = 0; // Event contains transcripts
+    CLOSED = 1; // Inference server received close stream, client can clean itself up
+  }
+ 
+  EventType type = 1;
+  string transcript = 2;
+  float start_time = 3;
+  float end_time = 4;
+  float speech_start_time = 5;
+  bool is_final = 6;
+}
