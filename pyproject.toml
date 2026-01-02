@@ -7,3 +7,7 @@ name = "knowlsttclient"
 version = "0.1.0"
 description = "Python client for Triton inference server"
 dependencies = ["protobuf", "requests", "websockets"]
+
+[tool.setuptools.packages.find]
+include = ["knowlsttclient*"]
+exclude = ["proto*", "sample-wav*"]
