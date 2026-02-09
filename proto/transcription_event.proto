@@ -11,6 +11,8 @@ message TranscriptionEvent{
   string transcript = 2;
   float start_time = 3;
   float end_time = 4;
-  float speech_start_time = 5;
-  bool is_final = 6;
+  float vad_speech_start_time = 5;
+  float speech_start_time = 6;
+  float speech_end_time = 7;
+  bool is_final = 8;
 }

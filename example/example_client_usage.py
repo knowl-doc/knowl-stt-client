@@ -68,7 +68,9 @@ async def example_with_callback():
         logger.info(
             f"📝 Transcript details: start_time={transcription_event.start_time}, "
             f"end_time={transcription_event.end_time}, is_final={transcription_event.is_final}, "
-            f"speech_start_time={transcription_event.speech_start_time}"
+            f"speech_start_time={transcription_event.speech_start_time}, "
+            f"speech_end_time={transcription_event.speech_end_time}, "
+            f"vad_speech_start_time={transcription_event.vad_speech_start_time}"
         )
         # Here you can process the transcript, send it to your application, etc.
     
@@ -104,7 +106,7 @@ async def example_with_callback():
         
         for chunk in audio_chunks:
             await client.send_audio(chunk)
-            #await asyncio.sleep(0.001)  # Simulate 20ms packet interval
+            await asyncio.sleep(0.01)  # Simulate 20ms packet interval
         logger.info("Sent all audio chunks")
         # Send close message
         await client.send_close_message()

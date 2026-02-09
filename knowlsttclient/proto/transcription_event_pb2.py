@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x19transcription_event.proto\"\xd1\x01\n\x12TranscriptionEvent\x12+\n\x04type\x18\x01 \x01(\x0e\x32\x1d.TranscriptionEvent.EventType\x12\x12\n\ntranscript\x18\x02 \x01(\t\x12\x12\n\nstart_time\x18\x03 \x01(\x02\x12\x10\n\x08\x65nd_time\x18\x04 \x01(\x02\x12\x19\n\x11speech_start_time\x18\x05 \x01(\x02\x12\x10\n\x08is_final\x18\x06 \x01(\x08\"\'\n\tEventType\x12\x0e\n\nTRANSCRIPT\x10\x00\x12\n\n\x06\x43LOSED\x10\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x19transcription_event.proto\"\x89\x02\n\x12TranscriptionEvent\x12+\n\x04type\x18\x01 \x01(\x0e\x32\x1d.TranscriptionEvent.EventType\x12\x12\n\ntranscript\x18\x02 \x01(\t\x12\x12\n\nstart_time\x18\x03 \x01(\x02\x12\x10\n\x08\x65nd_time\x18\x04 \x01(\x02\x12\x1d\n\x15vad_speech_start_time\x18\x05 \x01(\x02\x12\x19\n\x11speech_start_time\x18\x06 \x01(\x02\x12\x17\n\x0fspeech_end_time\x18\x07 \x01(\x02\x12\x10\n\x08is_final\x18\x08 \x01(\x08\"\'\n\tEventType\x12\x0e\n\nTRANSCRIPT\x10\x00\x12\n\n\x06\x43LOSED\x10\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -22,7 +22,7 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'transcription_event_pb2', _
 if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._options = None
   _globals['_TRANSCRIPTIONEVENT']._serialized_start=30
-  _globals['_TRANSCRIPTIONEVENT']._serialized_end=239
-  _globals['_TRANSCRIPTIONEVENT_EVENTTYPE']._serialized_start=200
-  _globals['_TRANSCRIPTIONEVENT_EVENTTYPE']._serialized_end=239
+  _globals['_TRANSCRIPTIONEVENT']._serialized_end=295
+  _globals['_TRANSCRIPTIONEVENT_EVENTTYPE']._serialized_start=256
+  _globals['_TRANSCRIPTIONEVENT_EVENTTYPE']._serialized_end=295
 # @@protoc_insertion_point(module_scope)
