@@ -59,8 +59,13 @@ def load_audio_file(file_path: str, chunk_size_bytes: int = 320) -> list[bytes]:
     return audio_chunks
 
 
-async def example_with_callback():
-    """Example using callback function for transcripts."""
+async def example_with_callback(audio_file_path: str, stream_realtime: bool, port: int = 8080):
+    """Example using callback function for transcripts.
+
+    Args:
+        audio_file_path: Path to the WAV audio file to transcribe.
+        stream_realtime: If True, send 20ms packets with a 20ms interval to simulate real-time streaming.
+    """
     
     async def on_transcript(transcription_event: TranscriptionEvent):
         """Handle received transcript."""
@@ -80,7 +85,7 @@ async def example_with_callback():
     
     # Create client with callbacks
     client = TritonTranscriptionClient(
-        server_url="ws://localhost:8080",
+        server_url=f"ws://localhost:{port}",
         on_transcript=on_transcript,
         on_error=on_error,
         auto_reconnect=True
@@ -89,24 +94,25 @@ async def example_with_callback():
     try:
         await client.connect()
         logger.info("✅ Connected to server")
-        
-        # Load real audio file
-        audio_file_path = Path(__file__).parent.parent / "sample-wav" / "audio_8k.wav"
-        if not audio_file_path.exists():
-            logger.error(f"Audio file not found: {audio_file_path}")
+
+        audio_path = Path(audio_file_path)
+        if not audio_path.exists():
+            logger.error(f"Audio file not found: {audio_path}")
             return
-        
-        audio_chunks = load_audio_file(str(audio_file_path))
-        logger.info(f"Loaded {len(audio_chunks)} audio chunks from {audio_file_path}")
+
+        audio_chunks = load_audio_file(str(audio_path))
+        logger.info(f"Loaded {len(audio_chunks)} audio chunks from {audio_path}")
         
         # Send audio chunks simulating real-time streaming
         # In real usage, you would get these from your VOIP WebSocket connection
         # Audio format: 8 kHz mono 16-bit PCM (little-endian)
         # Typical packet size: 20ms = 160 samples = 320 bytes
-        
+
         for chunk in audio_chunks:
             await client.send_audio(chunk)
-            await asyncio.sleep(0.01)  # Simulate 20ms packet interval
+            if stream_realtime:
+                # Simulate 20ms packet interval
+                await asyncio.sleep(0.02)
         logger.info("Sent all audio chunks")
         # Send close message
         await client.send_close_message()
@@ -120,9 +126,29 @@ async def example_with_callback():
     finally:
         await client.disconnect()
 
-
-
 if __name__ == "__main__":
-    # Run the callback example
-    asyncio.run(example_with_callback())
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Example client usage for Knowl STT.")
+    parser.add_argument(
+        "audio_file_path",
+        help="Path to the 8kHz mono 16-bit PCM WAV audio file to transcribe.",
+    )
+    parser.add_argument(
+        "stream_realtime",
+        type=lambda s: s.lower() == "true",
+        help="If 'true', stream 20ms audio packets with a 20ms interval; any other value sends audio as fast as possible.",
+    )
+    parser.add_argument(
+        "port",
+        type=int,
+        nargs="?",
+        default=8080,
+        help="Port of the transcription WebSocket server (default: 8080).",
+    )
+
+    args = parser.parse_args()
+
+    # Run the callback example with CLI arguments
+    asyncio.run(example_with_callback(args.audio_file_path, args.stream_realtime, args.port))
 
