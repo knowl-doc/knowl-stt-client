@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "knowlsttclient"
+version = "0.1.6"
+description = "Python client for Triton inference server"
+dependencies = ["protobuf", "requests", "websockets"]
+
+[tool.setuptools.packages.find]
+include = ["knowlsttclient*"]
+exclude = ["server*", "proto*", "model_repository*", "sample-wav*"]
