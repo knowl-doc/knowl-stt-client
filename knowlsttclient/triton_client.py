@@ -72,6 +72,7 @@ class TritonTranscriptionClient:
         stream_id: Optional[str] = None,
         stop_history_ms: Optional[int] = None,
         endpointing: Optional[dict] = None,
+        api_key: Optional[str] = None,
     ):
         """
         Initialize the Triton Transcription Client.
@@ -96,6 +97,10 @@ class TritonTranscriptionClient:
                 stop_history_ms, stop_history_eou_ms, start_history_ms (ints, ms),
                 stop_threshold, stop_threshold_eou, start_threshold (floats, 0..1).
                 ``stop_history_ms`` (the kwarg) takes precedence over this dict.
+            api_key: Optional API key for the gated external endpoint
+                (e.g. wss://voice.knowl.io/stt/v1). Sent as
+                ``Authorization: Bearer <key>`` on the WebSocket handshake.
+                Leave unset for the internal endpoint (no auth).
         """
         self.server_url = server_url
         self.on_transcript = on_transcript
@@ -105,6 +110,7 @@ class TritonTranscriptionClient:
         self.auto_reconnect = auto_reconnect
         self.reconnect_delay = reconnect_delay
         self.stream_id = stream_id if stream_id else str(uuid.uuid4())
+        self.api_key = api_key
         # Assemble per-call endpointing overrides (sent in the METADATA message).
         self.endpointing: dict = dict(endpointing or {})
         if stop_history_ms is not None:
@@ -132,6 +138,9 @@ class TritonTranscriptionClient:
             logger.info(f"Connecting to {self.server_url}...")
             self.websocket = await websockets.connect(
                 self.server_url,
+                additional_headers=(
+                    {"Authorization": f"Bearer {self.api_key}"} if self.api_key else None
+                ),
                 max_size=None,
                 max_queue=None
             )
