@@ -146,14 +146,20 @@ class TritonTranscriptionClient:
         """
         try:
             logger.info(f"Connecting to {self.server_url}...")
-            self.websocket = await websockets.connect(
-                self.server_url,
-                additional_headers=(
-                    {"Authorization": f"Bearer {self.api_key}"} if self.api_key else None
-                ),
-                max_size=None,
-                max_queue=None
-            )
+            connect_kwargs = {"max_size": None, "max_queue": None}
+            # Only attach an auth header when an API key is set (the internal
+            # fleet is keyless). websockets >= 14 renamed `extra_headers` to
+            # `additional_headers`; pick the kwarg the INSTALLED version accepts
+            # so the client works against both — callers (e.g. the call-manager)
+            # may pin an older websockets that rejects `additional_headers`.
+            if self.api_key:
+                try:
+                    _ws_major = int(websockets.__version__.split(".")[0])
+                except Exception:
+                    _ws_major = 0
+                header_kwarg = "additional_headers" if _ws_major >= 14 else "extra_headers"
+                connect_kwargs[header_kwarg] = {"Authorization": f"Bearer {self.api_key}"}
+            self.websocket = await websockets.connect(self.server_url, **connect_kwargs)
             self._connected = True
             logger.info("Connected to Triton inference server")
             await self.websocket.send(ControlMessage(
