@@ -73,6 +73,7 @@ class TritonTranscriptionClient:
         stop_history_ms: Optional[int] = None,
         endpointing: Optional[dict] = None,
         api_key: Optional[str] = None,
+        sample_rate: int = 8000,
     ):
         """
         Initialize the Triton Transcription Client.
@@ -101,6 +102,9 @@ class TritonTranscriptionClient:
                 (e.g. wss://voice.knowl.io/stt/v1). Sent as
                 ``Authorization: Bearer <key>`` on the WebSocket handshake.
                 Leave unset for the internal endpoint (no auth).
+            sample_rate: Input PCM sample rate in Hz (default 8000). 8000 is
+                upsampled to 16 kHz server-side; 16000 is sent to the model
+                as-is (no upsampling). Audio must be mono 16-bit PCM at this rate.
         """
         self.server_url = server_url
         self.on_transcript = on_transcript
@@ -111,6 +115,9 @@ class TritonTranscriptionClient:
         self.reconnect_delay = reconnect_delay
         self.stream_id = stream_id if stream_id else str(uuid.uuid4())
         self.api_key = api_key
+        # Input PCM rate. 8000 (default) is upsampled to 16 kHz server-side;
+        # 16000 is sent to the model as-is (no upsampling). Sent in METADATA.
+        self.sample_rate = sample_rate
         # Assemble per-call endpointing overrides (sent in the METADATA message).
         self.endpointing: dict = dict(endpointing or {})
         if stop_history_ms is not None:
@@ -123,9 +130,12 @@ class TritonTranscriptionClient:
     def _build_metadata(self) -> str:
         """Build the METADATA payload. Plain stream_id when there are no
         endpointing overrides (back-compatible); a JSON object otherwise."""
-        if not self.endpointing:
+        meta = dict(self.endpointing)
+        if self.sample_rate != 8000:
+            meta["sample_rate"] = self.sample_rate
+        if not meta:
             return self.stream_id
-        return json.dumps({"stream_id": self.stream_id, **self.endpointing})
+        return json.dumps({"stream_id": self.stream_id, **meta})
 
     async def connect(self) -> None:
         """
