@@ -115,6 +115,7 @@ class TritonTranscriptionClient:
         self.reconnect_delay = reconnect_delay
         self.stream_id = stream_id if stream_id else str(uuid.uuid4())
         self.api_key = api_key
+        self.served_by = None  # serving host (X-Served-By header), set on connect
         # Input PCM rate. 8000 (default) is upsampled to 16 kHz server-side;
         # 16000 is sent to the model as-is (no upsampling). Sent in METADATA.
         self.sample_rate = sample_rate
@@ -161,7 +162,15 @@ class TritonTranscriptionClient:
                 connect_kwargs[header_kwarg] = {"Authorization": f"Bearer {self.api_key}"}
             self.websocket = await websockets.connect(self.server_url, **connect_kwargs)
             self._connected = True
-            logger.info("Connected to Triton inference server")
+            # Record the serving host from the handshake response (X-Served-By).
+            # websockets >= 14 exposes .response.headers; < 14 uses .response_headers.
+            try:
+                resp = getattr(self.websocket, "response", None)
+                hdrs = resp.headers if resp is not None else getattr(self.websocket, "response_headers", None)
+                self.served_by = hdrs.get("X-Served-By") if hdrs else None
+            except Exception:
+                self.served_by = None
+            logger.info("Connected to Triton inference server (served_by=%s)", self.served_by)
             await self.websocket.send(ControlMessage(
                 type=ControlMessage.MessageType.METADATA,
                 metadata=self._build_metadata(),
