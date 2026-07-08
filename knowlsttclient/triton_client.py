@@ -6,13 +6,13 @@ and receive 8k mono telephony packets. They can use this library to transcribe a
 
 Example usage:
     import asyncio
-    from triton_client import TritonTranscriptionClient
-    
+    from knowlsttclient import StreamingClient
+
     async def on_transcript(transcript: str):
         print(f"Transcript: {transcript}")
-    
+
     async def main():
-        client = TritonTranscriptionClient(
+        client = StreamingClient(
             server_url="ws://localhost:8765",
             on_transcript=on_transcript
         )
@@ -47,9 +47,9 @@ logging.basicConfig(
 logger = logging.getLogger("triton_client")
 
 
-class TritonTranscriptionClient:
+class StreamingClient:
     """
-    Client for connecting to Triton Inference Server WebSocket for real-time audio transcription.
+    Client for real-time streaming speech-to-text over a WebSocket.
     
     The client expects:
     - Audio format: Mono 16-bit signed PCM (little-endian), 8 kHz sample rate
@@ -358,4 +358,11 @@ class TritonTranscriptionClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self.disconnect()
+
+
+# Backwards-compatible alias. `StreamingClient` is the public name; older callers
+# (and the current prod fleet) import `TritonTranscriptionClient`. Both refer to
+# the same class so existing code keeps working. The alias will be removed once
+# all consumers have migrated to `StreamingClient`.
+TritonTranscriptionClient = StreamingClient
 
