@@ -44,7 +44,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
 )
-logger = logging.getLogger("triton_client")
+logger = logging.getLogger("knowlsttclient")
 
 
 class StreamingClient:
