@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "knowlsttclient"
-version = "0.4.1"
+version = "0.4.2"
 description = "Python client for real-time streaming speech-to-text"
 dependencies = ["protobuf", "requests", "websockets"]
 
