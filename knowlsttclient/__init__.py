@@ -1,5 +1,12 @@
-from .streaming_client import StreamingClient, TritonTranscriptionClient
+from .streaming_client import StreamingClient
+from .offline_client import (
+    OfflineClient, OfflineResult, OfflineTranscriptionError, Segment, Word, pcm_from_wav,
+)
 
-# StreamingClient is the public name; TritonTranscriptionClient is a deprecated
-# alias kept for backwards compatibility (to be removed once all callers migrate).
-__all__ = ["StreamingClient", "TritonTranscriptionClient"]
+# StreamingClient  — streaming STT over WebSocket (wss://voice.knowl.io/stt/v1)
+# OfflineClient    — one-shot STT over HTTPS   (https://voice.knowl.io/stt/v1/recognize)
+__all__ = [
+    "StreamingClient",
+    "OfflineClient", "OfflineResult", "OfflineTranscriptionError",
+    "Segment", "Word", "pcm_from_wav",
+]

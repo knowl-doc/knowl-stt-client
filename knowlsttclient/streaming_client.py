@@ -359,10 +359,3 @@ class StreamingClient:
         """Async context manager exit."""
         await self.disconnect()
 
-
-# Backwards-compatible alias. `StreamingClient` is the public name; older callers
-# (and the current prod fleet) import `TritonTranscriptionClient`. Both refer to
-# the same class so existing code keeps working. The alias will be removed once
-# all consumers have migrated to `StreamingClient`.
-TritonTranscriptionClient = StreamingClient
-
