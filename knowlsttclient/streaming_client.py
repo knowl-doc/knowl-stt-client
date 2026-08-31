@@ -74,6 +74,7 @@ class StreamingClient:
         endpointing: Optional[dict] = None,
         api_key: Optional[str] = None,
         sample_rate: int = 8000,
+        open_timeout: Optional[float] = None,
     ):
         """
         Initialize the Triton Transcription Client.
@@ -119,6 +120,9 @@ class StreamingClient:
         # Input PCM rate. 8000 (default) is upsampled to 16 kHz server-side;
         # 16000 is sent to the model as-is (no upsampling). Sent in METADATA.
         self.sample_rate = sample_rate
+        # WS handshake timeout (s); None = websockets default (~10s). Lets callers
+        # fail fast + retry under a connection herd instead of blocking ~10s.
+        self.open_timeout = open_timeout
         # Assemble per-call endpointing overrides (sent in the METADATA message).
         self.endpointing: dict = dict(endpointing or {})
         if stop_history_ms is not None:
@@ -160,6 +164,8 @@ class StreamingClient:
                     _ws_major = 0
                 header_kwarg = "additional_headers" if _ws_major >= 14 else "extra_headers"
                 connect_kwargs[header_kwarg] = {"Authorization": f"Bearer {self.api_key}"}
+            if self.open_timeout is not None:
+                connect_kwargs["open_timeout"] = self.open_timeout
             self.websocket = await websockets.connect(self.server_url, **connect_kwargs)
             self._connected = True
             # Record the serving host from the handshake response (X-Served-By).
