@@ -32,6 +32,7 @@ Example usage:
 import asyncio
 import json
 import logging
+import random
 from typing import Optional, Callable, Awaitable
 import websockets
 from websockets import WebSocketClientProtocol
@@ -69,6 +70,9 @@ class StreamingClient:
         on_close: Optional[Callable[[], Awaitable[None]]] = None,
         auto_reconnect: bool = True,
         reconnect_delay: float = 5.0,
+        reconnect_initial_delay: float = 0.3,
+        reconnect_max_delay: float = 5.0,
+        max_reconnect_attempts: int = 5,
         stream_id: Optional[str] = None,
         stop_history_ms: Optional[int] = None,
         endpointing: Optional[dict] = None,
@@ -113,7 +117,11 @@ class StreamingClient:
         self.on_error = on_error
         self.on_close = on_close
         self.auto_reconnect = auto_reconnect
-        self.reconnect_delay = reconnect_delay
+        self.reconnect_delay = reconnect_delay  # deprecated
+        # bounded exp backoff: min(max, initial*2^(n-1)) + jitter
+        self.reconnect_initial_delay = reconnect_initial_delay
+        self.reconnect_max_delay = reconnect_max_delay
+        self.max_reconnect_attempts = max_reconnect_attempts  # 0 = unlimited
         self.stream_id = stream_id if stream_id else str(uuid.uuid4())
         self.api_key = api_key
         self.served_by = None  # serving host (X-Served-By header), set on connect
@@ -131,7 +139,9 @@ class StreamingClient:
         self._receive_task: Optional[asyncio.Task] = None
         self._connected = False
         self._should_reconnect = True
-        
+        self._reconnecting = False  # single-flight guard
+        self._reconnect_task: Optional[asyncio.Task] = None
+
     def _build_metadata(self) -> str:
         """Build the METADATA payload. Plain stream_id when there are no
         endpointing overrides (back-compatible); a JSON object otherwise."""
@@ -150,6 +160,7 @@ class StreamingClient:
             Exception: If connection fails
         """
         try:
+            self._should_reconnect = True  # re-arm; disconnect() clears it
             logger.info(f"Connecting to {self.server_url}...")
             connect_kwargs = {"max_size": None, "max_queue": None}
             # Only attach an auth header when an API key is set (the internal
@@ -193,7 +204,10 @@ class StreamingClient:
             raise
     
     async def _receive_loop(self) -> None:
-        """Internal loop to receive transcripts from the server."""
+        """Receive transcripts; on an unexpected drop reconnect in the background
+        instead of firing on_close (on_close = terminal end only)."""
+        reconnecting = False
+        cancelled = False
         try:
             while self._connected and self.websocket:
                 try:
@@ -221,37 +235,44 @@ class StreamingClient:
                         case TranscriptionEvent.EventType.CLOSED:
                             logger.info("Server closed connection")
                             self._connected = False
-                            if self.on_close:
-                                await self.on_close()
-                            break
+                            break  # graceful server close -> terminal (on_close in finally)
                         case _:
                             logger.warning("Received unexpected transcription event type")
                         
                 except ConnectionClosedOK:
                     logger.info("Server closed connection cleanly")
                     self._connected = False
+                    reconnecting = self.auto_reconnect and self._should_reconnect
                     break
                 except ConnectionClosedError as e:
                     logger.warning(f"Server connection error: {e}")
                     self._connected = False
+                    reconnecting = self.auto_reconnect and self._should_reconnect
                     break
                 except Exception as e:
                     logger.error(f"Error receiving message: {e}")
                     if self.on_error:
                         await self.on_error(e)
                     self._connected = False
+                    reconnecting = self.auto_reconnect and self._should_reconnect
                     break
-                    
+
         except asyncio.CancelledError:
-            logger.debug("Receive loop cancelled")
+            cancelled = True  # disconnect() cancelled us: no reconnect, no on_close
+            raise
         except Exception as e:
             logger.error(f"Unexpected error in receive loop: {e}")
             if self.on_error:
                 await self.on_error(e)
+            reconnecting = self.auto_reconnect and self._should_reconnect
         finally:
             self._connected = False
-            if self.on_close:
-                await self.on_close()
+            if not cancelled:
+                if reconnecting and self._should_reconnect:
+                    # background reconnect (new stream); on_close deferred to give-up
+                    self._reconnect_task = asyncio.create_task(self._reconnect())
+                elif self.on_close:
+                    await self.on_close()
     
     async def send_audio(self, audio_data: bytes) -> None:
         """
@@ -274,13 +295,13 @@ class StreamingClient:
             logger.warning("Connection closed while sending audio")
             self._connected = False
             if self.auto_reconnect and self._should_reconnect:
-                await self._reconnect()
+                self._reconnect_task = asyncio.create_task(self._reconnect())
             raise
         except ConnectionClosedError as e:
             logger.warning(f"Connection error while sending audio: {e}")
             self._connected = False
             if self.auto_reconnect and self._should_reconnect:
-                await self._reconnect()
+                self._reconnect_task = asyncio.create_task(self._reconnect())
             raise
         except Exception as e:
             logger.error(f"Error sending audio: {e}")
@@ -308,17 +329,36 @@ class StreamingClient:
             raise
 
     async def _reconnect(self) -> None:
-        """Attempt to reconnect to the server."""
-        logger.info(f"Attempting to reconnect in {self.reconnect_delay} seconds...")
-        await asyncio.sleep(self.reconnect_delay)
-        
+        """Reconnect with bounded backoff; single-flight. On exhausting
+        max_reconnect_attempts, fire on_close so the caller can fail over."""
+        if self._reconnecting:
+            return
+        self._reconnecting = True
         try:
-            await self.connect()
-        except Exception as e:
-            logger.error(f"Reconnection failed: {e}")
-            if self.auto_reconnect and self._should_reconnect:
-                # Schedule another reconnection attempt
-                asyncio.create_task(self._reconnect())
+            attempt = 0
+            while self.auto_reconnect and self._should_reconnect:
+                attempt += 1
+                delay = min(self.reconnect_max_delay,
+                            self.reconnect_initial_delay * (2 ** (attempt - 1)))
+                delay += random.uniform(0, self.reconnect_initial_delay)  # jitter
+                logger.info("Reconnect attempt %d/%s in %.2fs...", attempt,
+                            self.max_reconnect_attempts or "inf", delay)
+                await asyncio.sleep(delay)
+                if not self._should_reconnect:  # disconnect() during backoff
+                    return
+                try:
+                    await self.connect()
+                    logger.info("Reconnected on attempt %d", attempt)
+                    return
+                except Exception as e:
+                    logger.warning("Reconnect attempt %d failed: %s", attempt, e)
+                if self.max_reconnect_attempts and attempt >= self.max_reconnect_attempts:
+                    logger.error("Reconnect exhausted after %d attempts; giving up", attempt)
+                    if self.on_close:
+                        await self.on_close()  # terminal -> caller escalates (failover)
+                    return
+        finally:
+            self._reconnecting = False
     
     async def wait_for_transcripts(self) -> None:
         """
@@ -340,7 +380,15 @@ class StreamingClient:
         logger.info("Disconnecting from server...")
         self._should_reconnect = False
         self._connected = False
-        
+
+        # cancel any in-flight reconnect so teardown can't be resurrected
+        if self._reconnect_task and not self._reconnect_task.done():
+            self._reconnect_task.cancel()
+            try:
+                await self._reconnect_task
+            except asyncio.CancelledError:
+                pass
+
         if self._receive_task:
             self._receive_task.cancel()
             try:
