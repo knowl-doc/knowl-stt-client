@@ -75,13 +75,20 @@ class OfflineClient:
         self.timeout = timeout
 
     def recognize(self, pcm: bytes, sample_rate: int = 8000,
-                  language: Optional[str] = None) -> OfflineResult:
+                  language: Optional[str] = None,
+                  diarize: bool = False,
+                  model: Optional[str] = None) -> OfflineResult:
         """Transcribe a whole clip in one call.
 
         Args:
             pcm: mono, 16-bit signed little-endian PCM bytes (no header).
             sample_rate: 8000 (default) or 16000 — must match the PCM.
             language: optional language-code override (server default otherwise).
+            diarize: if True, also request speaker diarization; the result's
+                ``raw`` then carries ``diarized`` (speaker-labeled turns) and
+                ``diar_segments`` when the server has a diarizer configured.
+            model: optional NIM model name (e.g. "knowl-stt-hi-en-v4") to
+                pick one when several are co-loaded; server default (v3) otherwise.
 
         Returns:
             OfflineResult with ``transcript``, ``segments``, ``words``, ``duration_sec``.
@@ -97,6 +104,10 @@ class OfflineClient:
         params = {"sample_rate": sample_rate}
         if language:
             params["language"] = language
+        if diarize:
+            params["diarize"] = "1"
+        if model:
+            params["model"] = model
         try:
             resp = requests.post(
                 self.server_url, params=params, data=pcm,
