@@ -79,6 +79,9 @@ class StreamingClient:
         api_key: Optional[str] = None,
         sample_rate: int = 8000,
         open_timeout: Optional[float] = None,
+        boost_words: Optional[list] = None,
+        boost: Optional[float] = None,
+        boost_groups: Optional[list] = None,
     ):
         """
         Initialize the Triton Transcription Client.
@@ -131,6 +134,11 @@ class StreamingClient:
         # WS handshake timeout (s); None = websockets default (~10s). Lets callers
         # fail fast + retry under a connection herd instead of blocking ~10s.
         self.open_timeout = open_timeout
+        # Per-call contextual biasing, sent in METADATA (persists across reconnect).
+        # boost_words+boost = one group; boost_groups = [{"phrases":[...],"boost":N}] per-group.
+        self.boost_words = [w for w in (boost_words or []) if w]
+        self.boost = boost
+        self.boost_groups = boost_groups or []
         # Assemble per-call endpointing overrides (sent in the METADATA message).
         self.endpointing: dict = dict(endpointing or {})
         if stop_history_ms is not None:
@@ -148,6 +156,12 @@ class StreamingClient:
         meta = dict(self.endpointing)
         if self.sample_rate != 8000:
             meta["sample_rate"] = self.sample_rate
+        if self.boost_words:
+            meta["boost_words"] = self.boost_words
+            if self.boost is not None:
+                meta["boost"] = self.boost
+        if self.boost_groups:
+            meta["boost_groups"] = self.boost_groups
         if not meta:
             return self.stream_id
         return json.dumps({"stream_id": self.stream_id, **meta})

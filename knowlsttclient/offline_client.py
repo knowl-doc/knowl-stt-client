@@ -77,7 +77,9 @@ class OfflineClient:
     def recognize(self, pcm: bytes, sample_rate: int = 8000,
                   language: Optional[str] = None,
                   diarize: bool = False,
-                  model: Optional[str] = None) -> OfflineResult:
+                  model: Optional[str] = None,
+                  boost_words: Optional[list] = None,
+                  boost: Optional[float] = None) -> OfflineResult:
         """Transcribe a whole clip in one call.
 
         Args:
@@ -108,6 +110,11 @@ class OfflineClient:
             params["diarize"] = "1"
         if model:
             params["model"] = model
+        # Contextual biasing (focused, item-known terms).
+        if boost_words:
+            params["boost_words"] = ",".join(w for w in boost_words if w)
+            if boost is not None:
+                params["boost"] = boost
         try:
             resp = requests.post(
                 self.server_url, params=params, data=pcm,
